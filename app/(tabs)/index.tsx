@@ -13,7 +13,9 @@ import {
   ScrollView,
   TextInput,
   Alert,
-  Image
+  Image,
+  LayoutAnimation,
+  UIManager
 } from 'react-native';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -33,6 +35,11 @@ import { SpotifyButton } from '@/components/SpotifyButton';
 // Spotify green color
 const SPOTIFY_GREEN = '#1DB954';
 const SPOTIFY_DARK = '#191414';
+
+// Enable layout animations on Android
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 // Define styles first to avoid linter errors
 const styles = StyleSheet.create({
@@ -323,11 +330,19 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 16,
     color: SPOTIFY_GREEN,
     borderLeftWidth: 3,
     borderLeftColor: SPOTIFY_GREEN,
     paddingLeft: 10,
+  },
+  sectionTitleContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  sectionContent: {
+    marginTop: 8,
   },
   field: {
     marginBottom: 16,
@@ -457,6 +472,54 @@ const styles = StyleSheet.create({
     backgroundColor: SPOTIFY_GREEN,
     width: 20,
   },
+  dropdownButton: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 10,
+    padding: 14,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  dropdownButtonText: {
+    fontSize: 16,
+    color: '#666666',
+  },
+  dropdownContainer: {
+    marginTop: 4,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    zIndex: 10,
+  },
+  dropdownOption: {
+    padding: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  dropdownOptionSelected: {
+    backgroundColor: 'rgba(29, 185, 84, 0.05)',
+  },
+  dropdownOptionText: {
+    fontSize: 16,
+    color: '#444444',
+  },
+  dropdownOptionTextSelected: {
+    color: SPOTIFY_GREEN,
+    fontWeight: 'bold',
+  },
 });
 
 // Custom BiodataCard component specifically for the home screen
@@ -573,6 +636,14 @@ export default function HomeScreen() {
   const [isFormModalVisible, setIsFormModalVisible] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
   const [activeSection, setActiveSection] = useState(0);
+  const [expandedSections, setExpandedSections] = useState({
+    personalInfo: true,
+    basicDetails: true,
+    educationCareer: true,
+    religiousCultural: true,
+    familyDetails: true,
+    contactInfo: true
+  });
   const [formData, setFormData] = useState({
     salutation: 'Mr' as 'Mr' | 'Ms',
     fullName: '',
@@ -591,6 +662,7 @@ export default function HomeScreen() {
     email: '',
     address: '',
   });
+  const [isReligionDropdownOpen, setIsReligionDropdownOpen] = useState(false);
   
   const insets = useSafeAreaInsets();
   const slideAnim = useRef(new Animated.Value(-320)).current;
@@ -755,6 +827,15 @@ export default function HomeScreen() {
         { text: 'Discard', style: 'destructive', onPress: () => setIsFormModalVisible(false) },
       ]
     );
+  };
+
+  // Toggle section expansion
+  const toggleSection = (section: keyof typeof expandedSections) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setExpandedSections(prev => ({
+      ...prev,
+      [section]: !prev[section]
+    }));
   };
 
   const renderBiodataItem = ({ item }: { item: BiodataPreview }) => (
@@ -943,226 +1024,350 @@ export default function HomeScreen() {
               </View>
               
               <View style={styles.formSection}>
-                <ThemedText style={styles.sectionTitle}>Personal Information</ThemedText>
+                <TouchableOpacity 
+                  style={styles.sectionTitleContainer} 
+                  onPress={() => toggleSection('personalInfo')}
+                  activeOpacity={0.7}
+                >
+                  <ThemedText style={styles.sectionTitle}>Personal Information</ThemedText>
+                  <Ionicons 
+                    name={expandedSections.personalInfo ? "chevron-up" : "chevron-down"} 
+                    size={24} 
+                    color={SPOTIFY_GREEN} 
+                  />
+                </TouchableOpacity>
                 
-                <View style={styles.field}>
-                  <ThemedText style={styles.fieldLabel}>
-                    Salutation <ThemedText style={styles.requiredField}>*</ThemedText>
-                  </ThemedText>
-                  <View style={styles.salutationContainer}>
-                    <TouchableOpacity 
-                      style={[
-                        styles.salutationButton, 
-                        formData.salutation === 'Mr' && styles.selectedSalutation
-                      ]}
-                      onPress={() => handleFormChange('salutation', 'Mr')}
-                    >
-                      <ThemedText 
-                        style={formData.salutation === 'Mr' ? styles.selectedSalutationText : styles.salutationText}
-                      >
-                        Mr
+                {expandedSections.personalInfo && (
+                  <View style={styles.sectionContent}>
+                    <View style={styles.field}>
+                      <ThemedText style={styles.fieldLabel}>
+                        Salutation <ThemedText style={styles.requiredField}>*</ThemedText>
                       </ThemedText>
-                    </TouchableOpacity>
-                    <TouchableOpacity 
-                      style={[
-                        styles.salutationButton, 
-                        formData.salutation === 'Ms' && styles.selectedSalutation
-                      ]}
-                      onPress={() => handleFormChange('salutation', 'Ms')}
-                    >
-                      <ThemedText 
-                        style={formData.salutation === 'Ms' ? styles.selectedSalutationText : styles.salutationText}
-                      >
-                        Ms
+                      <View style={styles.salutationContainer}>
+                        <TouchableOpacity 
+                          style={[
+                            styles.salutationButton, 
+                            formData.salutation === 'Mr' && styles.selectedSalutation
+                          ]}
+                          onPress={() => handleFormChange('salutation', 'Mr')}
+                        >
+                          <ThemedText 
+                            style={formData.salutation === 'Mr' ? styles.selectedSalutationText : styles.salutationText}
+                          >
+                            Mr
+                          </ThemedText>
+                        </TouchableOpacity>
+                        <TouchableOpacity 
+                          style={[
+                            styles.salutationButton, 
+                            formData.salutation === 'Ms' && styles.selectedSalutation
+                          ]}
+                          onPress={() => handleFormChange('salutation', 'Ms')}
+                        >
+                          <ThemedText 
+                            style={formData.salutation === 'Ms' ? styles.selectedSalutationText : styles.salutationText}
+                          >
+                            Ms
+                          </ThemedText>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                    
+                    <View style={styles.field}>
+                      <ThemedText style={styles.fieldLabel}>
+                        Full Name <ThemedText style={styles.requiredField}>*</ThemedText>
                       </ThemedText>
-                    </TouchableOpacity>
+                      <TextInput
+                        style={styles.input}
+                        value={formData.fullName}
+                        onChangeText={(value) => handleFormChange('fullName', value)}
+                        placeholder="Enter full name"
+                      />
+                    </View>
                   </View>
-                </View>
-                
-                <View style={styles.field}>
-                  <ThemedText style={styles.fieldLabel}>
-                    Full Name <ThemedText style={styles.requiredField}>*</ThemedText>
-                  </ThemedText>
-                  <TextInput
-                    style={styles.input}
-                    value={formData.fullName}
-                    onChangeText={(value) => handleFormChange('fullName', value)}
-                    placeholder="Enter full name"
-                  />
-                </View>
+                )}
               </View>
 
               <View style={styles.formSection}>
-                <ThemedText style={styles.sectionTitle}>Basic Details</ThemedText>
-                
-                <View style={styles.field}>
-                  <ThemedText style={styles.fieldLabel}>
-                    Date of Birth <ThemedText style={styles.requiredField}>*</ThemedText>
-                  </ThemedText>
-                  <TextInput
-                    style={styles.input}
-                    value={formData.dateOfBirth}
-                    onChangeText={(value) => handleFormChange('dateOfBirth', value)}
-                    placeholder="DD/MM/YYYY"
+                <TouchableOpacity 
+                  style={styles.sectionTitleContainer} 
+                  onPress={() => toggleSection('basicDetails')}
+                  activeOpacity={0.7}
+                >
+                  <ThemedText style={styles.sectionTitle}>Basic Details</ThemedText>
+                  <Ionicons 
+                    name={expandedSections.basicDetails ? "chevron-up" : "chevron-down"} 
+                    size={24} 
+                    color={SPOTIFY_GREEN} 
                   />
-                </View>
+                </TouchableOpacity>
                 
-                <View style={styles.field}>
-                  <ThemedText style={styles.fieldLabel}>
-                    Place of Birth <ThemedText style={styles.requiredField}>*</ThemedText>
-                  </ThemedText>
-                  <TextInput
-                    style={styles.input}
-                    value={formData.placeOfBirth}
-                    onChangeText={(value) => handleFormChange('placeOfBirth', value)}
-                    placeholder="Enter place of birth"
-                  />
-                </View>
+                {expandedSections.basicDetails && (
+                  <View style={styles.sectionContent}>
+                    <View style={styles.field}>
+                      <ThemedText style={styles.fieldLabel}>
+                        Date of Birth <ThemedText style={styles.requiredField}>*</ThemedText>
+                      </ThemedText>
+                      <TextInput
+                        style={styles.input}
+                        value={formData.dateOfBirth}
+                        onChangeText={(value) => handleFormChange('dateOfBirth', value)}
+                        placeholder="DD/MM/YYYY"
+                      />
+                    </View>
+                    
+                    <View style={styles.field}>
+                      <ThemedText style={styles.fieldLabel}>
+                        Place of Birth <ThemedText style={styles.requiredField}>*</ThemedText>
+                      </ThemedText>
+                      <TextInput
+                        style={styles.input}
+                        value={formData.placeOfBirth}
+                        onChangeText={(value) => handleFormChange('placeOfBirth', value)}
+                        placeholder="Enter place of birth"
+                      />
+                    </View>
+                  </View>
+                )}
               </View>
 
               <View style={styles.formSection}>
-                <ThemedText style={styles.sectionTitle}>Education & Career</ThemedText>
-                
-                <View style={styles.field}>
-                  <ThemedText style={styles.fieldLabel}>
-                    Education <ThemedText style={styles.requiredField}>*</ThemedText>
-                  </ThemedText>
-                  <TextInput
-                    style={styles.input}
-                    value={formData.education}
-                    onChangeText={(value) => handleFormChange('education', value)}
-                    placeholder="Enter education details"
+                <TouchableOpacity 
+                  style={styles.sectionTitleContainer} 
+                  onPress={() => toggleSection('educationCareer')}
+                  activeOpacity={0.7}
+                >
+                  <ThemedText style={styles.sectionTitle}>Education & Career</ThemedText>
+                  <Ionicons 
+                    name={expandedSections.educationCareer ? "chevron-up" : "chevron-down"} 
+                    size={24} 
+                    color={SPOTIFY_GREEN} 
                   />
-                </View>
+                </TouchableOpacity>
                 
-                <View style={styles.field}>
-                  <ThemedText style={styles.fieldLabel}>
-                    Occupation <ThemedText style={styles.requiredField}>*</ThemedText>
-                  </ThemedText>
-                  <TextInput
-                    style={styles.input}
-                    value={formData.occupation}
-                    onChangeText={(value) => handleFormChange('occupation', value)}
-                    placeholder="Enter occupation"
-                  />
-                </View>
+                {expandedSections.educationCareer && (
+                  <View style={styles.sectionContent}>
+                    <View style={styles.field}>
+                      <ThemedText style={styles.fieldLabel}>
+                        Education <ThemedText style={styles.requiredField}>*</ThemedText>
+                      </ThemedText>
+                      <TextInput
+                        style={styles.input}
+                        value={formData.education}
+                        onChangeText={(value) => handleFormChange('education', value)}
+                        placeholder="Enter education details"
+                      />
+                    </View>
+                    
+                    <View style={styles.field}>
+                      <ThemedText style={styles.fieldLabel}>
+                        Occupation <ThemedText style={styles.requiredField}>*</ThemedText>
+                      </ThemedText>
+                      <TextInput
+                        style={styles.input}
+                        value={formData.occupation}
+                        onChangeText={(value) => handleFormChange('occupation', value)}
+                        placeholder="Enter occupation"
+                      />
+                    </View>
+                  </View>
+                )}
               </View>
 
               <View style={styles.formSection}>
-                <ThemedText style={styles.sectionTitle}>Religious & Cultural Details</ThemedText>
-                
-                <View style={styles.field}>
-                  <ThemedText style={styles.fieldLabel}>
-                    Religion <ThemedText style={styles.requiredField}>*</ThemedText>
-                  </ThemedText>
-                  <TextInput
-                    style={styles.input}
-                    value={formData.religion}
-                    onChangeText={(value) => handleFormChange('religion', value)}
-                    placeholder="Enter religion"
+                <TouchableOpacity 
+                  style={styles.sectionTitleContainer} 
+                  onPress={() => toggleSection('religiousCultural')}
+                  activeOpacity={0.7}
+                >
+                  <ThemedText style={styles.sectionTitle}>Religious & Cultural Details</ThemedText>
+                  <Ionicons 
+                    name={expandedSections.religiousCultural ? "chevron-up" : "chevron-down"} 
+                    size={24} 
+                    color={SPOTIFY_GREEN} 
                   />
-                </View>
+                </TouchableOpacity>
                 
-                <View style={styles.field}>
-                  <ThemedText style={styles.fieldLabel}>
-                    Caste <ThemedText style={styles.requiredField}>*</ThemedText>
-                  </ThemedText>
-                  <TextInput
-                    style={styles.input}
-                    value={formData.caste}
-                    onChangeText={(value) => handleFormChange('caste', value)}
-                    placeholder="Enter caste"
-                  />
-                </View>
+                {expandedSections.religiousCultural && (
+                  <View style={styles.sectionContent}>
+                    <View style={styles.field}>
+                      <ThemedText style={styles.fieldLabel}>
+                        Religion <ThemedText style={styles.requiredField}>*</ThemedText>
+                      </ThemedText>
+                      <TouchableOpacity
+                        style={styles.dropdownButton}
+                        onPress={() => setIsReligionDropdownOpen(!isReligionDropdownOpen)}
+                      >
+                        <ThemedText style={styles.dropdownButtonText}>
+                          {formData.religion || "Select your religion"}
+                        </ThemedText>
+                        <Ionicons
+                          name={isReligionDropdownOpen ? "chevron-up" : "chevron-down"}
+                          size={20}
+                          color="#666666"
+                        />
+                      </TouchableOpacity>
+                      
+                      {isReligionDropdownOpen && (
+                        <View style={styles.dropdownContainer}>
+                          {['Hindu', 'Christian', 'Muslim'].map(religion => (
+                            <TouchableOpacity
+                              key={religion}
+                              style={[
+                                styles.dropdownOption,
+                                formData.religion === religion && styles.dropdownOptionSelected
+                              ]}
+                              onPress={() => {
+                                handleFormChange('religion', religion);
+                                setIsReligionDropdownOpen(false);
+                              }}
+                            >
+                              <ThemedText 
+                                style={[
+                                  styles.dropdownOptionText,
+                                  formData.religion === religion && styles.dropdownOptionTextSelected
+                                ]}
+                              >
+                                {religion}
+                              </ThemedText>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      )}
+                    </View>
+                    
+                    <View style={styles.field}>
+                      <ThemedText style={styles.fieldLabel}>
+                        Caste <ThemedText style={styles.requiredField}>*</ThemedText>
+                      </ThemedText>
+                      <TextInput
+                        style={styles.input}
+                        value={formData.caste}
+                        onChangeText={(value) => handleFormChange('caste', value)}
+                        placeholder="Enter caste"
+                      />
+                    </View>
+                  </View>
+                )}
               </View>
 
               <View style={styles.formSection}>
-                <ThemedText style={styles.sectionTitle}>Family Details</ThemedText>
-                
-                <View style={styles.field}>
-                  <ThemedText style={styles.fieldLabel}>
-                    Father's Name <ThemedText style={styles.requiredField}>*</ThemedText>
-                  </ThemedText>
-                  <TextInput
-                    style={styles.input}
-                    value={formData.fatherName}
-                    onChangeText={(value) => handleFormChange('fatherName', value)}
-                    placeholder="Enter father's name"
+                <TouchableOpacity 
+                  style={styles.sectionTitleContainer} 
+                  onPress={() => toggleSection('familyDetails')}
+                  activeOpacity={0.7}
+                >
+                  <ThemedText style={styles.sectionTitle}>Family Details</ThemedText>
+                  <Ionicons 
+                    name={expandedSections.familyDetails ? "chevron-up" : "chevron-down"} 
+                    size={24} 
+                    color={SPOTIFY_GREEN} 
                   />
-                </View>
+                </TouchableOpacity>
                 
-                <View style={styles.field}>
-                  <ThemedText style={styles.fieldLabel}>Father's Occupation</ThemedText>
-                  <TextInput
-                    style={styles.input}
-                    value={formData.fatherOccupation}
-                    onChangeText={(value) => handleFormChange('fatherOccupation', value)}
-                    placeholder="Enter father's occupation"
-                  />
-                </View>
-                
-                <View style={styles.field}>
-                  <ThemedText style={styles.fieldLabel}>
-                    Mother's Name <ThemedText style={styles.requiredField}>*</ThemedText>
-                  </ThemedText>
-                  <TextInput
-                    style={styles.input}
-                    value={formData.motherName}
-                    onChangeText={(value) => handleFormChange('motherName', value)}
-                    placeholder="Enter mother's name"
-                  />
-                </View>
-                
-                <View style={styles.field}>
-                  <ThemedText style={styles.fieldLabel}>Mother's Occupation</ThemedText>
-                  <TextInput
-                    style={styles.input}
-                    value={formData.motherOccupation}
-                    onChangeText={(value) => handleFormChange('motherOccupation', value)}
-                    placeholder="Enter mother's occupation"
-                  />
-                </View>
+                {expandedSections.familyDetails && (
+                  <View style={styles.sectionContent}>
+                    <View style={styles.field}>
+                      <ThemedText style={styles.fieldLabel}>
+                        Father's Name <ThemedText style={styles.requiredField}>*</ThemedText>
+                      </ThemedText>
+                      <TextInput
+                        style={styles.input}
+                        value={formData.fatherName}
+                        onChangeText={(value) => handleFormChange('fatherName', value)}
+                        placeholder="Enter father's name"
+                      />
+                    </View>
+                    
+                    <View style={styles.field}>
+                      <ThemedText style={styles.fieldLabel}>Father's Occupation</ThemedText>
+                      <TextInput
+                        style={styles.input}
+                        value={formData.fatherOccupation}
+                        onChangeText={(value) => handleFormChange('fatherOccupation', value)}
+                        placeholder="Enter father's occupation"
+                      />
+                    </View>
+                    
+                    <View style={styles.field}>
+                      <ThemedText style={styles.fieldLabel}>
+                        Mother's Name <ThemedText style={styles.requiredField}>*</ThemedText>
+                      </ThemedText>
+                      <TextInput
+                        style={styles.input}
+                        value={formData.motherName}
+                        onChangeText={(value) => handleFormChange('motherName', value)}
+                        placeholder="Enter mother's name"
+                      />
+                    </View>
+                    
+                    <View style={styles.field}>
+                      <ThemedText style={styles.fieldLabel}>Mother's Occupation</ThemedText>
+                      <TextInput
+                        style={styles.input}
+                        value={formData.motherOccupation}
+                        onChangeText={(value) => handleFormChange('motherOccupation', value)}
+                        placeholder="Enter mother's occupation"
+                      />
+                    </View>
+                  </View>
+                )}
               </View>
 
               <View style={styles.formSection}>
-                <ThemedText style={styles.sectionTitle}>Contact Information</ThemedText>
-                
-                <View style={styles.field}>
-                  <ThemedText style={styles.fieldLabel}>
-                    Phone Number <ThemedText style={styles.requiredField}>*</ThemedText>
-                  </ThemedText>
-                  <TextInput
-                    style={styles.input}
-                    value={formData.phoneNumber}
-                    onChangeText={(value) => handleFormChange('phoneNumber', value)}
-                    placeholder="Enter phone number"
-                    keyboardType="phone-pad"
+                <TouchableOpacity 
+                  style={styles.sectionTitleContainer} 
+                  onPress={() => toggleSection('contactInfo')}
+                  activeOpacity={0.7}
+                >
+                  <ThemedText style={styles.sectionTitle}>Contact Information</ThemedText>
+                  <Ionicons 
+                    name={expandedSections.contactInfo ? "chevron-up" : "chevron-down"} 
+                    size={24} 
+                    color={SPOTIFY_GREEN} 
                   />
-                </View>
+                </TouchableOpacity>
                 
-                <View style={styles.field}>
-                  <ThemedText style={styles.fieldLabel}>Email</ThemedText>
-                  <TextInput
-                    style={styles.input}
-                    value={formData.email}
-                    onChangeText={(value) => handleFormChange('email', value)}
-                    placeholder="Enter email address"
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                  />
-                </View>
-                
-                <View style={styles.field}>
-                  <ThemedText style={styles.fieldLabel}>Address</ThemedText>
-                  <TextInput
-                    style={[styles.input, { height: 100, textAlignVertical: 'top' }]}
-                    value={formData.address}
-                    onChangeText={(value) => handleFormChange('address', value)}
-                    placeholder="Enter address"
-                    multiline
-                    numberOfLines={4}
-                  />
-                </View>
+                {expandedSections.contactInfo && (
+                  <View style={styles.sectionContent}>
+                    <View style={styles.field}>
+                      <ThemedText style={styles.fieldLabel}>
+                        Phone Number <ThemedText style={styles.requiredField}>*</ThemedText>
+                      </ThemedText>
+                      <TextInput
+                        style={styles.input}
+                        value={formData.phoneNumber}
+                        onChangeText={(value) => handleFormChange('phoneNumber', value)}
+                        placeholder="Enter phone number"
+                        keyboardType="phone-pad"
+                      />
+                    </View>
+                    
+                    <View style={styles.field}>
+                      <ThemedText style={styles.fieldLabel}>Email</ThemedText>
+                      <TextInput
+                        style={styles.input}
+                        value={formData.email}
+                        onChangeText={(value) => handleFormChange('email', value)}
+                        placeholder="Enter email address"
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                      />
+                    </View>
+                    
+                    <View style={styles.field}>
+                      <ThemedText style={styles.fieldLabel}>Address</ThemedText>
+                      <TextInput
+                        style={[styles.input, { height: 100, textAlignVertical: 'top' }]}
+                        value={formData.address}
+                        onChangeText={(value) => handleFormChange('address', value)}
+                        placeholder="Enter address"
+                        multiline
+                        numberOfLines={4}
+                      />
+                    </View>
+                  </View>
+                )}
               </View>
             </ScrollView>
             

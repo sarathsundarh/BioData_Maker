@@ -1,13 +1,16 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, ScrollView, View, TouchableOpacity, Alert, Image } from 'react-native';
+import { StyleSheet, ScrollView, View, TouchableOpacity, Alert, Image, ImageBackground, Dimensions, Share, Platform } from 'react-native';
 import { useLocalSearchParams, Stack, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { SpotifyButton } from '@/components/SpotifyButton';
+import GoogleAdsBanner from '@/components/GoogleAdsBanner';
 import { Biodata } from '@/models/biodata';
 import { getBiodataById } from '@/services/biodataService';
 
@@ -15,42 +18,154 @@ import { getBiodataById } from '@/services/biodataService';
 const SPOTIFY_GREEN = '#1DB954';
 const SPOTIFY_DARK = '#191414';
 
+// Get screen dimensions
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+
+type TemplateCategory = 'general' | 'hindu' | 'muslim' | 'christian';
+
 interface Template {
   id: string;
   name: string;
   isPaid: boolean;
   price?: number;
-  backgroundColor: string;
-  borderColor: string;
+  category: TemplateCategory;
+  backgroundImage: any; // Changed to 'any' to fix type issue
   icon: string;
 }
 
 const templates: Template[] = [
+  // Free general templates
   {
-    id: 'template1',
-    name: 'Classic',
+    id: 'free1',
+    name: 'Basic',
     isPaid: false,
-    backgroundColor: '#FFFFFF',
-    borderColor: '#000000',
+    category: 'general',
+    backgroundImage: require('../../../MatriData_Templates/free_template_bg_1.png'),
     icon: 'document-text',
   },
   {
-    id: 'template2',
-    name: 'Floral',
+    id: 'free2',
+    name: 'Simple',
+    isPaid: false,
+    category: 'general',
+    backgroundImage: require('../../../MatriData_Templates/free_template_bg_2.png'),
+    icon: 'document-text',
+  },
+  
+  // General templates
+  {
+    id: 'general1',
+    name: 'Classic',
     isPaid: true,
     price: 99,
-    backgroundColor: '#F8F4FF',
-    borderColor: '#9C6ADE',
-    icon: 'flower',
+    category: 'general',
+    backgroundImage: require('../../../MatriData_Templates/general_template_bg_1.png'),
+    icon: 'document-text',
   },
   {
-    id: 'template3',
+    id: 'general2',
     name: 'Modern',
     isPaid: true,
     price: 149,
-    backgroundColor: '#F0F9FF',
-    borderColor: '#0091FF',
+    category: 'general',
+    backgroundImage: require('../../../MatriData_Templates/general_template_bg_2.png'),
     icon: 'trending-up',
+  },
+  {
+    id: 'general3',
+    name: 'Elegant',
+    isPaid: true,
+    price: 179,
+    category: 'general',
+    backgroundImage: require('../../../MatriData_Templates/general_template_bg_3.png'),
+    icon: 'flower',
+  },
+  
+  // Hindu templates
+  {
+    id: 'hindu1',
+    name: 'Traditional',
+    isPaid: true,
+    price: 129,
+    category: 'hindu',
+    backgroundImage: require('../../../MatriData_Templates/hindu_template_bg_1.png'),
+    icon: 'leaf',
+  },
+  {
+    id: 'hindu2',
+    name: 'Auspicious',
+    isPaid: true,
+    price: 149,
+    category: 'hindu',
+    backgroundImage: require('../../../MatriData_Templates/hindu_template_bg_2.png'),
+    icon: 'flame',
+  },
+  {
+    id: 'hindu3',
+    name: 'Celebration',
+    isPaid: true,
+    price: 169,
+    category: 'hindu',
+    backgroundImage: require('../../../MatriData_Templates/hindu_template_bg_3.png'),
+    icon: 'star',
+  },
+  
+  // Muslim templates
+  {
+    id: 'muslim1',
+    name: 'Elegant',
+    isPaid: true,
+    price: 129,
+    category: 'muslim',
+    backgroundImage: require('../../../MatriData_Templates/muslim_template_bg_1.png'),
+    icon: 'moon',
+  },
+  {
+    id: 'muslim2',
+    name: 'Traditional',
+    isPaid: true,
+    price: 149,
+    category: 'muslim',
+    backgroundImage: require('../../../MatriData_Templates/muslim_template_bg_2.png'),
+    icon: 'star',
+  },
+  {
+    id: 'muslim3',
+    name: 'Heritage',
+    isPaid: true,
+    price: 169,
+    category: 'muslim',
+    backgroundImage: require('../../../MatriData_Templates/muslim_template_bg_3.png'),
+    icon: 'globe',
+  },
+  
+  // Christian templates
+  {
+    id: 'christian1',
+    name: 'Classic',
+    isPaid: true,
+    price: 129,
+    category: 'christian',
+    backgroundImage: require('../../../MatriData_Templates/christian_template_bg_1.png'),
+    icon: 'book',
+  },
+  {
+    id: 'christian2',
+    name: 'Modern',
+    isPaid: true,
+    price: 149,
+    category: 'christian',
+    backgroundImage: require('../../../MatriData_Templates/christian_template_bg_2.png'),
+    icon: 'heart',
+  },
+  {
+    id: 'christian3',
+    name: 'Divine',
+    isPaid: true,
+    price: 169,
+    category: 'christian',
+    backgroundImage: require('../../../MatriData_Templates/christian_template_bg_3.png'),
+    icon: 'flower',
   },
 ];
 
@@ -61,12 +176,40 @@ export default function BiodataPreviewScreen() {
   const [loading, setLoading] = useState(true);
   const [selectedTemplate, setSelectedTemplate] = useState<Template>(templates[0]);
   const [isPurchased, setIsPurchased] = useState(false);
-
+  const [downloading, setDownloading] = useState(false);
+  const [activeCategory, setActiveCategory] = useState<TemplateCategory>('general');
+  
   useEffect(() => {
     if (id) {
       loadBiodata(id);
     }
   }, [id]);
+
+  // When biodata is loaded, try to set a default template based on religion
+  useEffect(() => {
+    if (biodata) {
+      let religionBasedCategory: TemplateCategory = 'general';
+      
+      if (biodata.religion.toLowerCase().includes('hindu')) {
+        religionBasedCategory = 'hindu';
+      } else if (biodata.religion.toLowerCase().includes('muslim') || 
+                 biodata.religion.toLowerCase().includes('islam')) {
+        religionBasedCategory = 'muslim';
+      } else if (biodata.religion.toLowerCase().includes('christian') || 
+                 biodata.religion.toLowerCase().includes('catholic')) {
+        religionBasedCategory = 'christian';
+      }
+      
+      // Set the category and find a template in that category
+      setActiveCategory(religionBasedCategory);
+      
+      // Find the first template in that category
+      const religiousTemplate = templates.find(t => t.category === religionBasedCategory);
+      if (religiousTemplate) {
+        setSelectedTemplate(religiousTemplate);
+      }
+    }
+  }, [biodata]);
 
   const loadBiodata = async (biodataId: string) => {
     setLoading(true);
@@ -108,14 +251,104 @@ export default function BiodataPreviewScreen() {
     );
   };
 
-  const handleDownload = () => {
-    // In a real app, this would generate and download a PDF/PNG
-    Alert.alert('Success', 'Biodata downloaded successfully!');
+  const handleDownloadPDF = async () => {
+    // Start the download process
+    setDownloading(true);
+    
+    try {
+      // Simulate PDF generation with a delay
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Create a filename based on the biodata
+      const fileName = `${biodata?.fullName.replace(/\s+/g, '_')}_Biodata.pdf`;
+      
+      // On a real app, this would use a PDF generation library like react-native-html-to-pdf
+      // For simulation, we'll create a dummy file in the temporary directory
+      const fileUri = `${FileSystem.cacheDirectory}${fileName}`;
+      
+      // Simulate writing the PDF file
+      // In a real app, this would contain the actual PDF generation code
+      await FileSystem.writeAsStringAsync(
+        fileUri,
+        "This is a simulated PDF file for demo purposes",
+        { encoding: FileSystem.EncodingType.UTF8 }
+      );
+      
+      // Check if sharing is available
+      const isSharingAvailable = await Sharing.isAvailableAsync();
+      
+      if (isSharingAvailable) {
+        // Open the native share dialog
+        await Sharing.shareAsync(fileUri, {
+          mimeType: 'application/pdf',
+          dialogTitle: 'Save or Share Biodata PDF',
+          UTI: 'com.adobe.pdf' // iOS only
+        });
+        
+        Alert.alert('Success', 'Your biodata PDF is ready to save or share!');
+      } else {
+        // Fallback for platforms where sharing is not available
+        Alert.alert('Success', `PDF generated successfully!\nFile saved to: ${fileUri}`);
+      }
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      Alert.alert('Error', 'Failed to generate PDF. Please try again.');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const handleDownloadPNG = async () => {
+    // Start the download process
+    setDownloading(true);
+    
+    try {
+      // Simulate PNG generation with a delay
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Create a filename based on the biodata
+      const fileName = `${biodata?.fullName.replace(/\s+/g, '_')}_Biodata.png`;
+      
+      // For simulation, we'll create a dummy file in the temporary directory
+      const fileUri = `${FileSystem.cacheDirectory}${fileName}`;
+      
+      // Simulate writing the PNG file
+      await FileSystem.writeAsStringAsync(
+        fileUri,
+        "This is a simulated PNG file for demo purposes",
+        { encoding: FileSystem.EncodingType.UTF8 }
+      );
+      
+      // Check if sharing is available
+      const isSharingAvailable = await Sharing.isAvailableAsync();
+      
+      if (isSharingAvailable) {
+        // Open the native share dialog
+        await Sharing.shareAsync(fileUri, {
+          mimeType: 'image/png',
+          dialogTitle: 'Save or Share Biodata Image',
+          UTI: 'public.png' // iOS only
+        });
+        
+        Alert.alert('Success', 'Your biodata image is ready to save or share!');
+      } else {
+        // Fallback for platforms where sharing is not available
+        Alert.alert('Success', `Image generated successfully!\nFile saved to: ${fileUri}`);
+      }
+    } catch (error) {
+      console.error('Error generating PNG:', error);
+      Alert.alert('Error', 'Failed to generate PNG. Please try again.');
+    } finally {
+      setDownloading(false);
+    }
   };
 
   const handleBack = () => {
     router.back();
   };
+
+  // Filter templates based on active category
+  const filteredTemplates = templates.filter(template => template.category === activeCategory);
 
   return (
     <ThemedView style={[styles.container, { paddingTop: insets.top }]}>
@@ -149,152 +382,314 @@ export default function BiodataPreviewScreen() {
           <ThemedText style={styles.loadingText}>Loading...</ThemedText>
         </View>
       ) : biodata ? (
-        <>
-          <View style={styles.templateSelector}>
-            <ThemedText style={styles.templateSelectorTitle}>Choose a Template</ThemedText>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {templates.map((template) => (
-                <TouchableOpacity
-                  key={template.id}
-                  style={[
-                    styles.templateOption,
-                    selectedTemplate.id === template.id && styles.selectedTemplate,
-                  ]}
-                  onPress={() => handleTemplateSelect(template)}
-                >
-                  <Ionicons 
-                    name={template.icon as any} 
-                    size={24} 
-                    color={selectedTemplate.id === template.id ? SPOTIFY_GREEN : '#666666'} 
-                    style={styles.templateIcon}
-                  />
-                  <ThemedText 
-                    style={[
-                      styles.templateName,
-                      selectedTemplate.id === template.id && styles.selectedTemplateName
-                    ]}
-                  >
-                    {template.name}
-                  </ThemedText>
-                  {template.isPaid && (
-                    <View style={styles.paidBadge}>
-                      <ThemedText style={styles.paidText}>₹{template.price}</ThemedText>
+        <View style={styles.mainContent}>
+          {/* MAIN PREVIEW SECTION - MOVE TO TOP */}
+          <View style={styles.scrollContainer}>
+            <View style={styles.previewArea}>
+              <ImageBackground 
+                source={selectedTemplate.backgroundImage}
+                style={styles.previewContainer}
+                imageStyle={styles.templateBackground}
+              >
+                {selectedTemplate.isPaid && !isPurchased && (
+                  <View style={styles.watermark}>
+                    <ThemedText style={styles.watermarkText}>PREVIEW</ThemedText>
+                  </View>
+                )}
+
+                <View style={styles.previewContent}>
+                  <View style={styles.previewHeader}>
+                    <ThemedText style={styles.previewTitle}>Marriage Biodata</ThemedText>
+                  </View>
+                  
+                  <View style={styles.previewSection}>
+                    <View style={styles.photoAndDetails}>
+                      {biodata.photoUri ? (
+                        <Image 
+                          source={{ uri: biodata.photoUri }} 
+                          style={styles.photo} 
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <View style={styles.photoPlaceholder}>
+                          <Ionicons name="person" size={40} color="#FFFFFF" />
+                        </View>
+                      )}
+
+                      <View style={styles.personalInfoContainer}>
+                        <ThemedText style={styles.previewName}>
+                          {`${biodata.salutation} ${biodata.fullName}`}
+                        </ThemedText>
+                        <ThemedText style={styles.previewDetail}>
+                          {`${biodata.occupation}`}
+                        </ThemedText>
+                      </View>
                     </View>
-                  )}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
+                  </View>
 
-          <ScrollView style={styles.scrollView}>
-            <View 
-              style={[
-                styles.previewContainer, 
-                { 
-                  backgroundColor: selectedTemplate.backgroundColor,
-                  borderColor: selectedTemplate.borderColor,
-                }
-              ]}
-            >
-              {selectedTemplate.isPaid && !isPurchased && (
-                <View style={styles.watermark}>
-                  <ThemedText style={styles.watermarkText}>PREVIEW</ThemedText>
+                  <View style={styles.divider} />
+
+                  {/* Personal Details Section */}
+                  <View style={styles.previewSection}>
+                    <View style={styles.sectionHeaderRow}>
+                      <ThemedText style={styles.sectionTitle}>Personal Details</ThemedText>
+                    </View>
+                    
+                    <View style={styles.detailsGrid}>
+                      <View style={styles.detailRow}>
+                        <ThemedText style={styles.detailLabel}>Full Name:</ThemedText>
+                        <ThemedText style={styles.detailValue}>{`${biodata.salutation} ${biodata.fullName}`}</ThemedText>
+                      </View>
+                      
+                      <View style={styles.detailRow}>
+                        <ThemedText style={styles.detailLabel}>Date & Time of Birth:</ThemedText>
+                        <ThemedText style={styles.detailValue}>
+                          {biodata.timeOfBirth 
+                            ? `${biodata.dateOfBirth} at ${biodata.timeOfBirth}`
+                            : biodata.dateOfBirth}
+                        </ThemedText>
+                      </View>
+                      
+                      <View style={styles.detailRow}>
+                        <ThemedText style={styles.detailLabel}>Place of Birth:</ThemedText>
+                        <ThemedText style={styles.detailValue}>{biodata.placeOfBirth}</ThemedText>
+                      </View>
+                      
+                      {biodata.height && (
+                        <View style={styles.detailRow}>
+                          <ThemedText style={styles.detailLabel}>Height:</ThemedText>
+                          <ThemedText style={styles.detailValue}>{biodata.height}</ThemedText>
+                        </View>
+                      )}
+                      
+                      <View style={styles.detailRow}>
+                        <ThemedText style={styles.detailLabel}>Religion:</ThemedText>
+                        <ThemedText style={styles.detailValue}>{biodata.religion}</ThemedText>
+                      </View>
+                      
+                      <View style={styles.detailRow}>
+                        <ThemedText style={styles.detailLabel}>Caste:</ThemedText>
+                        <ThemedText style={styles.detailValue}>{biodata.caste}</ThemedText>
+                      </View>
+                      
+                      {biodata.gotra && (
+                        <View style={styles.detailRow}>
+                          <ThemedText style={styles.detailLabel}>Gotra:</ThemedText>
+                          <ThemedText style={styles.detailValue}>{biodata.gotra}</ThemedText>
+                        </View>
+                      )}
+                      
+                      {biodata.raasi && (
+                        <View style={styles.detailRow}>
+                          <ThemedText style={styles.detailLabel}>Rashi/Zodiac:</ThemedText>
+                          <ThemedText style={styles.detailValue}>{biodata.raasi}</ThemedText>
+                        </View>
+                      )}
+                      
+                      {biodata.nakshatra && (
+                        <View style={styles.detailRow}>
+                          <ThemedText style={styles.detailLabel}>Nakshatra/Star:</ThemedText>
+                          <ThemedText style={styles.detailValue}>{biodata.nakshatra}</ThemedText>
+                        </View>
+                      )}
+                      
+                      <View style={styles.detailRow}>
+                        <ThemedText style={styles.detailLabel}>Education:</ThemedText>
+                        <ThemedText style={styles.detailValue}>{biodata.education}</ThemedText>
+                      </View>
+                      
+                      <View style={styles.detailRow}>
+                        <ThemedText style={styles.detailLabel}>Occupation:</ThemedText>
+                        <ThemedText style={styles.detailValue}>{biodata.occupation}</ThemedText>
+                      </View>
+                      
+                      {biodata.annualIncome && (
+                        <View style={styles.detailRow}>
+                          <ThemedText style={styles.detailLabel}>Annual Income:</ThemedText>
+                          <ThemedText style={styles.detailValue}>{biodata.annualIncome}</ThemedText>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+
+                  <View style={styles.divider} />
+
+                  {/* Family Details Section */}
+                  <View style={styles.previewSection}>
+                    <View style={styles.sectionHeaderRow}>
+                      <ThemedText style={styles.sectionTitle}>Family Details</ThemedText>
+                    </View>
+                    
+                    <View style={styles.detailsGrid}>
+                      <View style={styles.detailRow}>
+                        <ThemedText style={styles.detailLabel}>Father's Name:</ThemedText>
+                        <ThemedText style={styles.detailValue}>{biodata.fatherName || "Not specified"}</ThemedText>
+                      </View>
+                      
+                      <View style={styles.detailRow}>
+                        <ThemedText style={styles.detailLabel}>Father's Occupation:</ThemedText>
+                        <ThemedText style={styles.detailValue}>{biodata.fatherOccupation || "Not specified"}</ThemedText>
+                      </View>
+                      
+                      <View style={styles.detailRow}>
+                        <ThemedText style={styles.detailLabel}>Mother's Name:</ThemedText>
+                        <ThemedText style={styles.detailValue}>{biodata.motherName || "Not specified"}</ThemedText>
+                      </View>
+                      
+                      <View style={styles.detailRow}>
+                        <ThemedText style={styles.detailLabel}>Mother's Occupation:</ThemedText>
+                        <ThemedText style={styles.detailValue}>{biodata.motherOccupation || "Not specified"}</ThemedText>
+                      </View>
+                      
+                      {Array.isArray(biodata.siblings) && biodata.siblings.length > 0 ? (
+                        <View style={styles.detailRow}>
+                          <ThemedText style={styles.detailLabel}>Siblings:</ThemedText>
+                          <View style={styles.siblingsContainer}>
+                            {biodata.siblings.map((sibling, index) => (
+                              <ThemedText key={index} style={styles.detailValue}>
+                                {`${sibling.name}${sibling.age ? ` (${sibling.age}, ` : ' ('}${sibling.gender}, ${sibling.maritalStatus})`}
+                              </ThemedText>
+                            ))}
+                          </View>
+                        </View>
+                      ) : null}
+                    </View>
+                  </View>
+
+                  <View style={styles.divider} />
+
+                  {/* Contact Details Section */}
+                  <View style={styles.previewSection}>
+                    <View style={styles.sectionHeaderRow}>
+                      <ThemedText style={styles.sectionTitle}>Contact Details</ThemedText>
+                    </View>
+                    
+                    <View style={styles.detailsGrid}>
+                      <View style={styles.detailRow}>
+                        <ThemedText style={styles.detailLabel}>Phone:</ThemedText>
+                        <ThemedText style={styles.detailValue}>{biodata.phoneNumber}</ThemedText>
+                      </View>
+                      
+                      <View style={styles.detailRow}>
+                        <ThemedText style={styles.detailLabel}>Email:</ThemedText>
+                        <ThemedText style={styles.detailValue}>{biodata.email}</ThemedText>
+                      </View>
+                      
+                      <View style={styles.detailRow}>
+                        <ThemedText style={styles.detailLabel}>Address:</ThemedText>
+                        <ThemedText style={styles.detailValue}>{biodata.address}</ThemedText>
+                      </View>
+                    </View>
+                  </View>
                 </View>
-              )}
+              </ImageBackground>
+            </View>
 
-              <View style={styles.previewHeader}>
-                <ThemedText style={styles.previewTitle}>Biodata</ThemedText>
+            {/* TEMPLATE SELECTION AREA - MOVED TO BOTTOM */}
+            <View style={styles.templateArea}>
+              {/* Template Category Tabs */}
+              <View style={styles.categoryTabs}>
+                <TouchableOpacity
+                  style={[
+                    styles.categoryTab,
+                    activeCategory === 'general' && styles.activeCategoryTab
+                  ]}
+                  onPress={() => setActiveCategory('general')}
+                >
+                  <ThemedText style={[
+                    styles.categoryTabText,
+                    activeCategory === 'general' && styles.activeCategoryTabText
+                  ]}>
+                    General
+                  </ThemedText>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[
+                    styles.categoryTab,
+                    activeCategory === 'hindu' && styles.activeCategoryTab
+                  ]}
+                  onPress={() => setActiveCategory('hindu')}
+                >
+                  <ThemedText style={[
+                    styles.categoryTabText,
+                    activeCategory === 'hindu' && styles.activeCategoryTabText
+                  ]}>
+                    Hindu
+                  </ThemedText>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[
+                    styles.categoryTab,
+                    activeCategory === 'muslim' && styles.activeCategoryTab
+                  ]}
+                  onPress={() => setActiveCategory('muslim')}
+                >
+                  <ThemedText style={[
+                    styles.categoryTabText,
+                    activeCategory === 'muslim' && styles.activeCategoryTabText
+                  ]}>
+                    Muslim
+                  </ThemedText>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[
+                    styles.categoryTab,
+                    activeCategory === 'christian' && styles.activeCategoryTab
+                  ]}
+                  onPress={() => setActiveCategory('christian')}
+                >
+                  <ThemedText style={[
+                    styles.categoryTabText,
+                    activeCategory === 'christian' && styles.activeCategoryTabText
+                  ]}>
+                    Christian
+                  </ThemedText>
+                </TouchableOpacity>
               </View>
 
-              <View style={styles.previewContent}>
-                <View style={styles.previewSection}>
-                  {biodata.photoUri ? (
-                    <Image 
-                      source={{ uri: biodata.photoUri }} 
-                      style={styles.photo} 
-                      resizeMode="cover"
-                    />
-                  ) : (
-                    <View style={styles.photoPlaceholder}>
-                      <Ionicons name="person" size={60} color="#FFFFFF" />
-                    </View>
-                  )}
-
-                  <View style={styles.personalInfo}>
-                    <ThemedText style={styles.previewName}>
-                      {`${biodata.salutation} ${biodata.fullName}`}
-                    </ThemedText>
-                    <ThemedText style={styles.previewDetail}>
-                      {`${biodata.occupation}`}
-                    </ThemedText>
-                    <ThemedText style={styles.previewDetail}>
-                      {`${biodata.religion}, ${biodata.caste}`}
-                    </ThemedText>
-                    <ThemedText style={styles.previewDetail}>
-                      {`Born on ${biodata.dateOfBirth} at ${biodata.placeOfBirth}`}
-                    </ThemedText>
-                  </View>
-                </View>
-
-                <View style={styles.divider} />
-
-                <View style={styles.previewSection}>
-                  <View style={styles.sectionHeaderRow}>
-                    <Ionicons name="school" size={20} color={SPOTIFY_GREEN} style={styles.sectionIcon} />
-                    <ThemedText style={styles.sectionTitle}>Education & Career</ThemedText>
-                  </View>
-                  <ThemedText style={styles.previewDetail}>
-                    <ThemedText style={styles.boldText}>Education: </ThemedText>
-                    {biodata.education}
-                  </ThemedText>
-                  <ThemedText style={styles.previewDetail}>
-                    <ThemedText style={styles.boldText}>Occupation: </ThemedText>
-                    {biodata.occupation}
-                  </ThemedText>
-                </View>
-
-                <View style={styles.divider} />
-
-                <View style={styles.previewSection}>
-                  <View style={styles.sectionHeaderRow}>
-                    <Ionicons name="people" size={20} color={SPOTIFY_GREEN} style={styles.sectionIcon} />
-                    <ThemedText style={styles.sectionTitle}>Family Details</ThemedText>
-                  </View>
-                  <ThemedText style={styles.previewDetail}>
-                    <ThemedText style={styles.boldText}>Father: </ThemedText>
-                    {`${biodata.fatherName} (${biodata.fatherOccupation})`}
-                  </ThemedText>
-                  <ThemedText style={styles.previewDetail}>
-                    <ThemedText style={styles.boldText}>Mother: </ThemedText>
-                    {`${biodata.motherName} (${biodata.motherOccupation})`}
-                  </ThemedText>
-                </View>
-
-                <View style={styles.divider} />
-
-                <View style={styles.previewSection}>
-                  <View style={styles.sectionHeaderRow}>
-                    <Ionicons name="call" size={20} color={SPOTIFY_GREEN} style={styles.sectionIcon} />
-                    <ThemedText style={styles.sectionTitle}>Contact Information</ThemedText>
-                  </View>
-                  <ThemedText style={styles.previewDetail}>
-                    <ThemedText style={styles.boldText}>Phone: </ThemedText>
-                    {biodata.phoneNumber}
-                  </ThemedText>
-                  <ThemedText style={styles.previewDetail}>
-                    <ThemedText style={styles.boldText}>Email: </ThemedText>
-                    {biodata.email}
-                  </ThemedText>
-                  <ThemedText style={styles.previewDetail}>
-                    <ThemedText style={styles.boldText}>Address: </ThemedText>
-                    {biodata.address}
-                  </ThemedText>
-                </View>
+              {/* Template Selector */}
+              <View style={styles.templateSelector}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  {filteredTemplates.map((template) => (
+                    <TouchableOpacity
+                      key={template.id}
+                      style={[
+                        styles.templateOption,
+                        selectedTemplate.id === template.id && styles.selectedTemplate,
+                      ]}
+                      onPress={() => handleTemplateSelect(template)}
+                    >
+                      <Ionicons 
+                        name={template.icon as any} 
+                        size={20} 
+                        color={selectedTemplate.id === template.id ? SPOTIFY_GREEN : '#666666'} 
+                        style={styles.templateIcon}
+                      />
+                      <ThemedText 
+                        style={[
+                          styles.templateName,
+                          selectedTemplate.id === template.id && styles.selectedTemplateName
+                        ]}
+                      >
+                        {template.name}
+                      </ThemedText>
+                      {template.isPaid && (
+                        <View style={styles.paidBadge}>
+                          <ThemedText style={styles.paidText}>₹{template.price}</ThemedText>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
               </View>
             </View>
-          </ScrollView>
+          </View>
 
-          <View style={styles.actionButtons}>
+          {/* FIXED ACTION BUTTONS AT BOTTOM */}
+          <View style={styles.actionButtonsFixed}>
             {selectedTemplate.isPaid && !isPurchased ? (
               <SpotifyButton
                 title={`Purchase Template (₹${selectedTemplate.price})`}
@@ -303,20 +698,42 @@ export default function BiodataPreviewScreen() {
                 variant="secondary"
               />
             ) : (
-              <SpotifyButton
-                title="Download"
-                onPress={handleDownload}
-                icon="download-outline"
-              />
+              <View style={styles.downloadOptions}>
+                <ThemedText style={styles.downloadTitle}>Download as:</ThemedText>
+                <View style={styles.downloadButtons}>
+                  <SpotifyButton
+                    title="PDF Document"
+                    onPress={handleDownloadPDF}
+                    icon="document-text-outline"
+                    style={styles.downloadButton}
+                    disabled={downloading}
+                    loading={downloading}
+                    size="medium"
+                  />
+                  <SpotifyButton
+                    title="PNG Image"
+                    onPress={handleDownloadPNG}
+                    icon="image-outline"
+                    style={styles.downloadButton}
+                    variant="secondary"
+                    disabled={downloading}
+                    loading={downloading}
+                    size="medium"
+                  />
+                </View>
+              </View>
             )}
           </View>
-        </>
+        </View>
       ) : (
         <View style={styles.centerContainer}>
           <Ionicons name="alert-circle-outline" size={64} color={SPOTIFY_GREEN} />
           <ThemedText style={styles.notFoundText}>Biodata not found</ThemedText>
         </View>
       )}
+      
+      {/* Add Google Ads Banner at the bottom */}
+      <GoogleAdsBanner adSize="banner" testMode={true} />
       
       <StatusBar style="light" />
     </ThemedView>
@@ -376,30 +793,64 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 18,
   },
-  templateSelector: {
-    padding: 16,
+  mainContent: {
+    flex: 1,
+    flexDirection: 'column',
+  },
+  scrollContainer: {
+    flex: 1,
+    flexDirection: 'column',
+    marginBottom: 70, // Add space for fixed action buttons
+  },
+  previewArea: {
+    flex: 0.9, // Increased from 0.85 to give more space to the preview
+    paddingHorizontal: 4, // Reduced padding to allow more space for preview
+    paddingTop: 4,
+  },
+  templateArea: {
+    flex: 0.1, // Decreased from 0.15 to give less space to template selection
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0, 0, 0, 0.05)',
+    backgroundColor: '#FFFFFF',
+  },
+  categoryTabs: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 8,
+    paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(0, 0, 0, 0.05)',
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
   },
-  templateSelectorTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 12,
-    color: SPOTIFY_DARK,
+  categoryTab: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 6,
+    marginHorizontal: 4,
+    borderRadius: 20,
+  },
+  activeCategoryTab: {
+    backgroundColor: 'rgba(29, 185, 84, 0.1)',
+  },
+  categoryTabText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#666666',
+  },
+  activeCategoryTabText: {
+    color: SPOTIFY_GREEN,
+    fontWeight: 'bold',
+  },
+  templateSelector: {
+    padding: 12,
+    backgroundColor: '#FFFFFF',
   },
   templateOption: {
-    padding: 16,
+    padding: 12,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#E0E0E0',
-    marginRight: 12,
-    minWidth: 120,
+    marginRight: 10,
+    minWidth: 100,
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
     shadowColor: '#000',
@@ -409,7 +860,7 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   templateIcon: {
-    marginBottom: 8,
+    marginBottom: 6,
   },
   selectedTemplate: {
     borderColor: SPOTIFY_GREEN,
@@ -417,6 +868,7 @@ const styles = StyleSheet.create({
   },
   templateName: {
     fontWeight: '600',
+    fontSize: 12,
     color: '#666666',
   },
   selectedTemplateName: {
@@ -424,30 +876,28 @@ const styles = StyleSheet.create({
   },
   paidBadge: {
     backgroundColor: SPOTIFY_GREEN,
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 12,
-    marginTop: 8,
+    borderRadius: 10,
+    marginTop: 6,
   },
   paidText: {
     color: 'white',
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: '600',
   },
-  scrollView: {
-    flex: 1,
-    backgroundColor: '#F5F5F5',
-  },
   previewContainer: {
-    margin: 16,
-    borderRadius: 12,
-    borderWidth: 1,
+    height: '100%',
+    borderRadius: 6, // Reduced from 8 for more content space
     overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+  },
+  templateBackground: {
+    borderRadius: 6, // Reduced from 8 to match container
   },
   watermark: {
     position: 'absolute',
@@ -465,40 +915,79 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 0, 0, 0.2)',
     transform: [{ rotate: '-45deg' }],
   },
+  previewContent: {
+    padding: 10, // Reduced from 12 to fit more content
+    backgroundColor: 'transparent', // Changed from semi-transparent to fully transparent
+    margin: 8, // Reduced from 12 to fit more content
+    borderRadius: 8,
+    maxWidth: '95%', // Increased from 90% to show more content
+    alignSelf: 'center',
+    top: '30%', // Adjusted from 40% to better center the content
+    transform: [{ translateY: -screenHeight * 0.25 }], // Adjusted for better vertical positioning
+  },
   previewHeader: {
-    padding: 16,
     alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
-    backgroundColor: 'rgba(29, 185, 84, 0.05)',
+    marginBottom: 10,
   },
   previewTitle: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 'bold',
     color: SPOTIFY_DARK,
+    textAlign: 'center',
+    marginBottom: 12,
+    textShadowColor: 'rgba(255, 255, 255, 0.8)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
-  previewContent: {
-    padding: 16,
+  photoAndDetails: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
   },
-  previewSection: {
-    marginBottom: 16,
+  personalInfoContainer: {
+    marginLeft: 15,
+    flex: 1,
+  },
+  previewName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 6,
+    color: SPOTIFY_DARK,
+    textAlign: 'center',
+  },
+  previewDetail: {
+    marginBottom: 6,
+    fontSize: 13,
+    color: '#333333',
+    lineHeight: 18,
+    textAlign: 'center',
+  },
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    marginBottom: 6,
+    color: SPOTIFY_DARK,
+    textShadowColor: 'rgba(255, 255, 255, 0.8)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   sectionHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   sectionIcon: {
-    marginRight: 8,
+    marginRight: 6,
   },
   photoPlaceholder: {
-    width: 120,
-    height: 140,
+    width: 80,
+    height: 100,
     backgroundColor: SPOTIFY_GREEN,
     justifyContent: 'center',
     alignItems: 'center',
     alignSelf: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
     borderRadius: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -507,10 +996,10 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   photo: {
-    width: 120,
-    height: 140,
+    width: 80,
+    height: 100,
     alignSelf: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
     borderWidth: 1,
     borderColor: '#E0E0E0',
     borderRadius: 8,
@@ -520,41 +1009,69 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 2,
   },
-  personalInfo: {
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  previewName: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginBottom: 8,
-    color: SPOTIFY_DARK,
-  },
-  previewDetail: {
-    marginBottom: 8,
-    fontSize: 15,
-    color: '#333333',
-    lineHeight: 22,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 8,
-    color: SPOTIFY_DARK,
-  },
-  boldText: {
-    fontWeight: 'bold',
-    color: SPOTIFY_DARK,
-  },
   divider: {
     height: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.05)',
-    marginVertical: 16,
+    marginVertical: 8, // Reduced from 12 for more compact layout
   },
-  actionButtons: {
+  actionButtonsFixed: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     padding: 16,
     borderTopWidth: 1,
     borderTopColor: 'rgba(0, 0, 0, 0.05)',
     backgroundColor: '#FFFFFF',
+    zIndex: 10,
+  },
+  downloadOptions: {
+    width: '100%',
+  },
+  downloadTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    color: SPOTIFY_DARK,
+    textAlign: 'center',
+  },
+  downloadButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  downloadButton: {
+    flex: 1,
+    marginHorizontal: 4,
+  },
+  detailsGrid: {
+    marginTop: 6, // Reduced from 8
+  },
+  detailRow: {
+    flexDirection: 'row',
+    marginBottom: 4, // Reduced from 6 for more compact layout
+    alignItems: 'flex-start',
+  },
+  detailLabel: {
+    fontWeight: 'bold',
+    fontSize: 12,
+    color: SPOTIFY_DARK,
+    minWidth: '30%', // Reduced from 35% to allow more space for values
+    textShadowColor: 'rgba(255, 255, 255, 0.8)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 1,
+  },
+  detailValue: {
+    fontSize: 12,
+    color: '#333333',
+    flex: 1,
+    textShadowColor: 'rgba(255, 255, 255, 0.8)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 1,
+  },
+  siblingsContainer: {
+    flex: 1,
+  },
+  previewSection: {
+    marginBottom: 8, // Reduced from 12 for more compact layout
   },
 }); 
