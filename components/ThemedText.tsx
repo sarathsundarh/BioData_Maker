@@ -1,60 +1,79 @@
-import { Text, type TextProps, StyleSheet } from 'react-native';
+import React from 'react';
+import { Text, TextProps, StyleSheet } from 'react-native';
+import { useColorScheme } from 'react-native';
 
-import { useThemeColor } from '@/hooks/useThemeColor';
+interface ThemedTextProps extends TextProps {
+  type?: 'title' | 'subtitle' | 'body' | 'caption' | 'button' | 'header';
+  weight?: 'normal' | 'bold' | 'semibold';
+}
 
-export type ThemedTextProps = TextProps & {
-  lightColor?: string;
-  darkColor?: string;
-  type?: 'default' | 'title' | 'defaultSemiBold' | 'subtitle' | 'link';
-};
-
-export function ThemedText({
-  style,
-  lightColor,
-  darkColor,
-  type = 'default',
-  ...rest
+export function ThemedText({ 
+  style, 
+  type = 'body', 
+  weight = 'normal',
+  ...props 
 }: ThemedTextProps) {
-  const color = useThemeColor({ light: lightColor, dark: darkColor }, 'text');
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
 
-  return (
-    <Text
-      style={[
-        { color },
-        type === 'default' ? styles.default : undefined,
-        type === 'title' ? styles.title : undefined,
-        type === 'defaultSemiBold' ? styles.defaultSemiBold : undefined,
-        type === 'subtitle' ? styles.subtitle : undefined,
-        type === 'link' ? styles.link : undefined,
-        style,
-      ]}
-      {...rest}
-    />
-  );
+  // Default text color is dark for light mode, light for dark mode
+  const color = isDark ? '#FFFFFF' : '#121212';
+  
+  // Combine type and weight styles
+  const combinedStyle = [
+    styles.base,
+    styles[type],
+    weight === 'bold' ? styles.bold : weight === 'semibold' ? styles.semibold : styles.normal,
+    { color },
+    style
+  ];
+
+  return <Text style={combinedStyle} {...props} />;
 }
 
 const styles = StyleSheet.create({
-  default: {
+  base: {
+    fontFamily: 'System',
     fontSize: 16,
-    lineHeight: 24,
   },
-  defaultSemiBold: {
-    fontSize: 16,
-    lineHeight: 24,
+  normal: {
+    fontWeight: '400',
+  },
+  semibold: {
     fontWeight: '600',
   },
+  bold: {
+    fontWeight: '700',
+  },
   title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    lineHeight: 32,
+    fontSize: 24,
+    fontWeight: '700',
+    letterSpacing: -0.5,
+    marginBottom: 8,
   },
   subtitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 4,
   },
-  link: {
-    lineHeight: 30,
+  header: {
+    fontSize: 32,
+    fontWeight: '700',
+    letterSpacing: -1,
+    marginBottom: 16,
+  },
+  body: {
     fontSize: 16,
-    color: '#0a7ea4',
+    lineHeight: 22,
+  },
+  caption: {
+    fontSize: 14,
+    opacity: 0.7,
+  },
+  button: {
+    fontSize: 16,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
 });
