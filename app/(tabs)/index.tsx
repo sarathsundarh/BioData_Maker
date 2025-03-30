@@ -408,9 +408,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   formPhotoHint: {
-    fontSize: 14,
-    color: '#666666',
-    marginTop: 4,
+    marginTop: 8,
+    color: SPOTIFY_GREEN,
+    fontWeight: '500',
   },
   salutationContainer: {
     flexDirection: 'row',
@@ -458,19 +458,22 @@ const styles = StyleSheet.create({
   progressContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
+    marginTop: 10,
     marginBottom: 20,
     paddingHorizontal: 20,
   },
   progressStep: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
     backgroundColor: '#E0E0E0',
-    marginHorizontal: 4,
+    marginHorizontal: 6,
   },
   activeProgressStep: {
     backgroundColor: SPOTIFY_GREEN,
-    width: 20,
+    width: 24,
+    height: 12,
+    borderRadius: 6,
   },
   dropdownButton: {
     flexDirection: 'row',
@@ -520,6 +523,56 @@ const styles = StyleSheet.create({
     color: SPOTIFY_GREEN,
     fontWeight: 'bold',
   },
+  siblingsContainer: {
+    marginTop: 16,
+  },
+  siblingsList: {
+    marginTop: 8,
+  },
+  siblingItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: '#F5F5F5',
+    borderRadius: 8,
+    marginVertical: 4,
+  },
+  siblingInfo: {
+    flex: 1,
+  },
+  siblingName: {
+    fontWeight: '600',
+    fontSize: 15,
+  },
+  siblingDetails: {
+    fontSize: 13,
+    color: '#666',
+    marginTop: 2,
+  },
+  siblingActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  siblingActionButton: {
+    padding: 6,
+    marginLeft: 8,
+  },
+  addSiblingButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(29, 185, 84, 0.1)',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  addSiblingText: {
+    color: SPOTIFY_GREEN,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
 });
 
 // Custom BiodataCard component specifically for the home screen
@@ -528,9 +581,10 @@ interface BiodataListCardProps {
   onView: (id: string) => void;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
+  onViewTemplates: (id: string) => void;
 }
 
-function BiodataListCard({ item, onView, onEdit, onDelete }: BiodataListCardProps) {
+function BiodataListCard({ item, onView, onEdit, onDelete, onViewTemplates }: BiodataListCardProps) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   
   const handlePressIn = () => {
@@ -598,6 +652,19 @@ function BiodataListCard({ item, onView, onEdit, onDelete }: BiodataListCardProp
           
           <TouchableOpacity 
             style={styles.actionButton} 
+            onPress={() => onViewTemplates(item.id)}
+            activeOpacity={0.7}
+            onPressIn={handlePressIn}
+            onPressOut={handlePressOut}
+          >
+            <View style={styles.actionButtonInner}>
+              <Ionicons name="albums-outline" size={22} color={SPOTIFY_GREEN} />
+              <ThemedText type="caption" style={styles.actionText}>Templates</ThemedText>
+            </View>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.actionButton} 
             onPress={() => onEdit(item.id)}
             activeOpacity={0.7}
             onPressIn={handlePressIn}
@@ -654,15 +721,35 @@ export default function HomeScreen() {
     occupation: '',
     religion: '',
     caste: '',
+    gotra: '',
+    raasi: '',
+    nakshatra: '',
     fatherName: '',
     fatherOccupation: '',
     motherName: '',
     motherOccupation: '',
+    siblings: [] as {
+      id: string;
+      name: string;
+      age: string;
+      gender: 'Male' | 'Female' | 'Other';
+      maritalStatus: 'Single' | 'Married' | 'Divorced' | 'Widowed';
+    }[],
     phoneNumber: '',
     email: '',
     address: '',
   });
   const [isReligionDropdownOpen, setIsReligionDropdownOpen] = useState(false);
+  const [isSiblingModalVisible, setIsSiblingModalVisible] = useState(false);
+  const [currentSibling, setCurrentSibling] = useState({
+    id: '',
+    name: '',
+    age: '',
+    gender: 'Male' as 'Male' | 'Female' | 'Other',
+    maritalStatus: 'Single' as 'Single' | 'Married' | 'Divorced' | 'Widowed',
+  });
+  const [isGenderDropdownOpen, setIsGenderDropdownOpen] = useState(false);
+  const [isMaritalStatusDropdownOpen, setIsMaritalStatusDropdownOpen] = useState(false);
   
   const insets = useSafeAreaInsets();
   const slideAnim = useRef(new Animated.Value(-320)).current;
@@ -695,10 +782,14 @@ export default function HomeScreen() {
       occupation: '',
       religion: '',
       caste: '',
+      gotra: '',
+      raasi: '',
+      nakshatra: '',
       fatherName: '',
       fatherOccupation: '',
       motherName: '',
       motherOccupation: '',
+      siblings: [],
       phoneNumber: '',
       email: '',
       address: '',
@@ -793,7 +884,7 @@ export default function HomeScreen() {
   const handleSaveForm = async () => {
     // Basic validation
     if (!formData.fullName || !formData.dateOfBirth || !formData.placeOfBirth || 
-        !formData.fatherName || !formData.motherName || !formData.phoneNumber) {
+        !formData.religion || !formData.fatherName || !formData.motherName || !formData.phoneNumber) {
       Alert.alert('Validation Error', 'Please fill in all required fields');
       return;
     }
@@ -838,12 +929,70 @@ export default function HomeScreen() {
     }));
   };
 
+  const handleAddSibling = () => {
+    setCurrentSibling({
+      id: '',
+      name: '',
+      age: '',
+      gender: 'Male',
+      maritalStatus: 'Single',
+    });
+    setIsSiblingModalVisible(true);
+  };
+
+  const handleSaveSibling = () => {
+    if (!currentSibling.name) {
+      Alert.alert('Validation Error', 'Please enter sibling name');
+      return;
+    }
+
+    const updatedSiblings = [...formData.siblings];
+    
+    if (currentSibling.id) {
+      // Edit existing sibling
+      const index = updatedSiblings.findIndex(s => s.id === currentSibling.id);
+      if (index !== -1) {
+        updatedSiblings[index] = currentSibling;
+      }
+    } else {
+      // Add new sibling
+      updatedSiblings.push({
+        ...currentSibling,
+        id: Date.now().toString(),
+      });
+    }
+    
+    setFormData(prev => ({
+      ...prev,
+      siblings: updatedSiblings,
+    }));
+    
+    setIsSiblingModalVisible(false);
+  };
+
+  const handleEditSibling = (id: string) => {
+    const sibling = formData.siblings.find(s => s.id === id);
+    if (sibling) {
+      setCurrentSibling(sibling);
+      setIsSiblingModalVisible(true);
+    }
+  };
+
+  const handleRemoveSibling = (id: string) => {
+    const updatedSiblings = formData.siblings.filter(s => s.id !== id);
+    setFormData(prev => ({
+      ...prev,
+      siblings: updatedSiblings,
+    }));
+  };
+
   const renderBiodataItem = ({ item }: { item: BiodataPreview }) => (
     <BiodataListCard
       item={item}
       onView={handleViewBiodata}
       onEdit={handleEditBiodata}
       onDelete={handleDeleteBiodata}
+      onViewTemplates={(id) => router.push(`/biodata/preview/${id}`)}
     />
   );
 
@@ -1238,13 +1387,49 @@ export default function HomeScreen() {
                     
                     <View style={styles.field}>
                       <ThemedText style={styles.fieldLabel}>
-                        Caste <ThemedText style={styles.requiredField}>*</ThemedText>
+                        Caste
                       </ThemedText>
                       <TextInput
                         style={styles.input}
                         value={formData.caste}
                         onChangeText={(value) => handleFormChange('caste', value)}
                         placeholder="Enter caste"
+                      />
+                    </View>
+                    
+                    <View style={styles.field}>
+                      <ThemedText style={styles.fieldLabel}>
+                        Gotra
+                      </ThemedText>
+                      <TextInput
+                        style={styles.input}
+                        value={formData.gotra}
+                        onChangeText={(value) => handleFormChange('gotra', value)}
+                        placeholder="Enter gotra (optional)"
+                      />
+                    </View>
+                    
+                    <View style={styles.field}>
+                      <ThemedText style={styles.fieldLabel}>
+                        Raasi/Zodiac
+                      </ThemedText>
+                      <TextInput
+                        style={styles.input}
+                        value={formData.raasi}
+                        onChangeText={(value) => handleFormChange('raasi', value)}
+                        placeholder="Enter raasi/zodiac (optional)"
+                      />
+                    </View>
+                    
+                    <View style={styles.field}>
+                      <ThemedText style={styles.fieldLabel}>
+                        Nakshatra/Star
+                      </ThemedText>
+                      <TextInput
+                        style={styles.input}
+                        value={formData.nakshatra}
+                        onChangeText={(value) => handleFormChange('nakshatra', value)}
+                        placeholder="Enter nakshatra/star (optional)"
                       />
                     </View>
                   </View>
@@ -1308,6 +1493,51 @@ export default function HomeScreen() {
                         value={formData.motherOccupation}
                         onChangeText={(value) => handleFormChange('motherOccupation', value)}
                         placeholder="Enter mother's occupation"
+                      />
+                    </View>
+                    
+                    <View style={styles.field}>
+                      <ThemedText style={styles.fieldLabel}>Siblings</ThemedText>
+                      
+                      {formData.siblings.length > 0 && (
+                        <View style={styles.siblingsList}>
+                          {formData.siblings.map((sibling) => (
+                            <View key={sibling.id} style={styles.siblingItem}>
+                              <View style={styles.siblingInfo}>
+                                <ThemedText style={styles.siblingName}>{sibling.name}</ThemedText>
+                                <ThemedText style={styles.siblingDetails}>
+                                  {`${sibling.age ? sibling.age + ' yrs, ' : ''}${sibling.gender}, ${sibling.maritalStatus}`}
+                                </ThemedText>
+                              </View>
+                              
+                              <View style={styles.siblingActions}>
+                                <TouchableOpacity 
+                                  onPress={() => handleEditSibling(sibling.id)}
+                                  style={styles.siblingActionButton}
+                                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                >
+                                  <Ionicons name="pencil" size={18} color={SPOTIFY_GREEN} />
+                                </TouchableOpacity>
+                                
+                                <TouchableOpacity 
+                                  onPress={() => handleRemoveSibling(sibling.id)}
+                                  style={styles.siblingActionButton}
+                                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                >
+                                  <Ionicons name="trash-outline" size={18} color="#FF5252" />
+                                </TouchableOpacity>
+                              </View>
+                            </View>
+                          ))}
+                        </View>
+                      )}
+                      
+                      <SpotifyButton
+                        title="Add Sibling"
+                        onPress={handleAddSibling}
+                        icon="add-circle-outline"
+                        size="small"
+                        style={styles.addSiblingButton}
                       />
                     </View>
                   </View>
@@ -1377,6 +1607,158 @@ export default function HomeScreen() {
                 onPress={handleSaveForm}
                 disabled={formLoading}
                 style={formLoading ? styles.disabledSaveButton : styles.saveButton}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Sibling Modal */}
+      <Modal
+        visible={isSiblingModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setIsSiblingModalVisible(false)}
+        statusBarTranslucent={true}
+      >
+        <View style={styles.formModalOverlay}>
+          <View style={styles.formModalContainer}>
+            <View style={styles.formHeader}>
+              <ThemedText style={styles.formTitle}>
+                {currentSibling.id ? 'Edit Sibling' : 'Add Sibling'}
+              </ThemedText>
+              
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => setIsSiblingModalVisible(false)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons name="close" size={24} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+            
+            <ScrollView style={styles.formScrollView}>
+              <View style={styles.field}>
+                <ThemedText style={styles.fieldLabel}>
+                  Name <ThemedText style={styles.requiredField}>*</ThemedText>
+                </ThemedText>
+                <TextInput
+                  style={styles.input}
+                  value={currentSibling.name}
+                  onChangeText={(value) => setCurrentSibling(prev => ({ ...prev, name: value }))}
+                  placeholder="Enter sibling's name"
+                />
+              </View>
+              
+              <View style={styles.field}>
+                <ThemedText style={styles.fieldLabel}>Age</ThemedText>
+                <TextInput
+                  style={styles.input}
+                  value={currentSibling.age}
+                  onChangeText={(value) => setCurrentSibling(prev => ({ ...prev, age: value }))}
+                  placeholder="Enter age"
+                  keyboardType="number-pad"
+                />
+              </View>
+              
+              <View style={styles.field}>
+                <ThemedText style={styles.fieldLabel}>
+                  Gender <ThemedText style={styles.requiredField}>*</ThemedText>
+                </ThemedText>
+                <TouchableOpacity
+                  style={styles.dropdownButton}
+                  onPress={() => setIsGenderDropdownOpen(!isGenderDropdownOpen)}
+                >
+                  <ThemedText style={styles.dropdownButtonText}>
+                    {currentSibling.gender}
+                  </ThemedText>
+                  <Ionicons
+                    name={isGenderDropdownOpen ? "chevron-up" : "chevron-down"}
+                    size={20}
+                    color="#666666"
+                  />
+                </TouchableOpacity>
+                
+                {isGenderDropdownOpen && (
+                  <View style={styles.dropdownContainer}>
+                    {['Male', 'Female', 'Other'].map(gender => (
+                      <TouchableOpacity
+                        key={gender}
+                        style={[
+                          styles.dropdownOption,
+                          currentSibling.gender === gender && styles.dropdownOptionSelected
+                        ]}
+                        onPress={() => {
+                          setCurrentSibling(prev => ({ ...prev, gender: gender as 'Male' | 'Female' | 'Other' }));
+                          setIsGenderDropdownOpen(false);
+                        }}
+                      >
+                        <ThemedText 
+                          style={[
+                            styles.dropdownOptionText,
+                            currentSibling.gender === gender && styles.dropdownOptionTextSelected
+                          ]}
+                        >
+                          {gender}
+                        </ThemedText>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+              </View>
+              
+              <View style={styles.field}>
+                <ThemedText style={styles.fieldLabel}>
+                  Marital Status <ThemedText style={styles.requiredField}>*</ThemedText>
+                </ThemedText>
+                <TouchableOpacity
+                  style={styles.dropdownButton}
+                  onPress={() => setIsMaritalStatusDropdownOpen(!isMaritalStatusDropdownOpen)}
+                >
+                  <ThemedText style={styles.dropdownButtonText}>
+                    {currentSibling.maritalStatus}
+                  </ThemedText>
+                  <Ionicons
+                    name={isMaritalStatusDropdownOpen ? "chevron-up" : "chevron-down"}
+                    size={20}
+                    color="#666666"
+                  />
+                </TouchableOpacity>
+                
+                {isMaritalStatusDropdownOpen && (
+                  <View style={styles.dropdownContainer}>
+                    {['Single', 'Married', 'Divorced', 'Widowed'].map(status => (
+                      <TouchableOpacity
+                        key={status}
+                        style={[
+                          styles.dropdownOption,
+                          currentSibling.maritalStatus === status && styles.dropdownOptionSelected
+                        ]}
+                        onPress={() => {
+                          setCurrentSibling(prev => ({ ...prev, maritalStatus: status as 'Single' | 'Married' | 'Divorced' | 'Widowed' }));
+                          setIsMaritalStatusDropdownOpen(false);
+                        }}
+                      >
+                        <ThemedText 
+                          style={[
+                            styles.dropdownOptionText,
+                            currentSibling.maritalStatus === status && styles.dropdownOptionTextSelected
+                          ]}
+                        >
+                          {status}
+                        </ThemedText>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+              </View>
+            </ScrollView>
+            
+            <View style={styles.formFooter}>
+              <SpotifyButton
+                title="Save Sibling"
+                onPress={handleSaveSibling}
+                style={styles.saveButton}
               />
             </View>
           </View>
